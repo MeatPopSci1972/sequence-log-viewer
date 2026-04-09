@@ -1,0 +1,21 @@
+# ── OS noise ─────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ── Editor / IDE ─────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Local config overrides ────────────────────────────────────
+# Personal config files are not committed — use logview.*.config.json pattern
+logview.local.config.json
+
+# ── Runtime / temp ────────────────────────────────────────────
+*.log
