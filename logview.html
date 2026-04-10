@@ -145,12 +145,12 @@ const BASE = 'http://localhost:3799';
 let state = { version: null, logSeenIds: new Set(), stepStates: {}, stepResults: {} };
 
 const STEPS = [
-  { id:'test-store',      label:'Store tests',          method:'GET',  path:'/test',            prereqs:[],                    fields:[], terminalOnly:false, desc:'Run 170 contract tests. Must pass before any release action.' },
-  { id:'test-render',     label:'Render tests',         method:'GET',  path:'/test-render',      prereqs:['test-store'],         fields:[], terminalOnly:false, desc:'Playwright render gate — 15/15 snapshots must match.' },
-  { id:'bump',            label:'Bump version',         method:'POST', path:'/bump',             prereqs:['test-store','test-render'], fields:[{id:'bump-version',label:'Override version (blank for auto)',placeholder:'e.g. 0.9.98',vfn:()=>''}], terminalOnly:false, desc:'Increment patch from latest git tag. Writes version to HTML.' },
-  { id:'build',           label:'Build',                method:'POST', path:'/build',            prereqs:['bump'],               fields:[], terminalOnly:false, desc:'Syncs store.js into HTML between @@STORE-START/END sentinels.' },
+  { id:'test-store',      label:'Store tests',          method:'GET',  path:'/test',            prereqs:[],                    fields:[], terminalOnly:false, desc:'Run contract tests. Gate: 0 failures. Count is informational.' },
+  { id:'test-render',     label:'Render tests',         method:'GET',  path:'/test-render',      prereqs:['test-store'],         fields:[], terminalOnly:false, desc:'Playwright render gate. Gate: 0 failures. Count is informational.' },
+  { id:'build',           label:'Build',                method:'POST', path:'/build',            prereqs:['test-store','test-render'], fields:[], terminalOnly:false, desc:'Syncs store.js into HTML between @@STORE-START/END sentinels.' },
   { id:'lint',            label:'Lint',                 method:'POST', path:'/lint',             prereqs:['build'],              fields:[], terminalOnly:false, desc:'HTML integrity check — buttons, SVG balance, sentinels, version.' },
-  { id:'snapshot',        label:'Snapshot',             method:'POST', path:'/snapshot',         prereqs:['lint'],               fields:[{id:'snap-version',label:'Version',placeholder:'e.g. 0.9.98',vfn:()=>state.version||''}], terminalOnly:false, desc:'Copy build + HANDOFF into releases/vX.Y.Z/' },
+  { id:'bump',            label:'Bump version',         method:'POST', path:'/bump',             prereqs:['lint'],               fields:[{id:'bump-version',label:'Override version (blank for auto)',placeholder:'e.g. 0.9.98',vfn:()=>''}], terminalOnly:false, desc:'Bump version AFTER green gates — single source of truth: SF_VERSION constant.' },
+  { id:'snapshot',        label:'Snapshot',             method:'POST', path:'/snapshot',         prereqs:['bump'],               fields:[{id:'snap-version',label:'Version',placeholder:'e.g. 0.9.98',vfn:()=>state.version||''}], terminalOnly:false, desc:'Copy build + HANDOFF into releases/vX.Y.Z/' },
   { id:'gen-readme',      label:'Generate README',      method:'POST', path:'/generate-readme',  prereqs:['snapshot'],           fields:[], terminalOnly:false, desc:'Regenerate README.md from live git, test, endpoint, version sources.' },
   { id:'validate-readme', label:'Validate README',      method:'GET',  path:'/validate-readme',  prereqs:['gen-readme'],         fields:[{id:'val-version',label:'Version',placeholder:'e.g. 0.9.98',vfn:()=>state.version||''}], terminalOnly:false, desc:'Must return ok:true before release can continue.' },
   { id:'git-feat',        label:'Git commit (feat)',    method:'POST', path:'/git',              prereqs:['validate-readme'],    fields:[{id:'git-feat-msg',label:'Commit message',placeholder:'feat: …',vfn:()=>state.version?'feat: v'+state.version:'feat: '}], terminalOnly:false, desc:'Commit all staged changes.' },
@@ -159,6 +159,7 @@ const STEPS = [
   { id:'changelog',       label:'Changelog',            method:'POST', path:'/changelog',        prereqs:['git-handoff'],        fields:[{id:'changelog-ver',label:'Version',placeholder:'e.g. 0.9.98',vfn:()=>state.version||''}], terminalOnly:false, desc:'Auto-generate CHANGELOG.md entry from git log since last tag.' },
   { id:'tag',             label:'Tag',                  method:'POST', path:'/tag',              prereqs:['changelog'],          fields:[{id:'tag-name',label:'Tag',placeholder:'v0.9.98',vfn:()=>state.version?'v'+state.version:''},{id:'tag-msg',label:'Tag message',placeholder:'Release v0.9.98 — …',vfn:()=>state.version?'Release v'+state.version+' — ':''}], terminalOnly:false, desc:'Create annotated git tag. Point of no return.' },
   { id:'push',            label:'Push to GitHub',       method:null,   path:null,                prereqs:['tag'],                fields:[], terminalOnly:true,  desc:'Terminal: git push && git push --tags | Then: GitHub Releases > New release > select tag > attach html > Publish' },
+  { id:'check-pages', label:'Verify live demo', method:'GET', path:'/check-pages', prereqs:[], fields:[{id:'pages-version',label:'Version',placeholder:'e.g. 0.9.99',vfn:()=>state.version||''}], terminalOnly:false, desc:'Confirm GitHub Pages is serving the release. Returns ok when HTTP 200.' },
 ];
 
 function renderSteps() {
@@ -243,6 +244,7 @@ function buildBody(step) {
 function buildQuery(step) {
   if (step.id==='validate-readme') { const v=fv('val-version')||state.version; return v?'v='+encodeURIComponent(v):''; }
   if (step.id==='snapshot')        { const v=fv('snap-version')||state.version; return v?'v='+encodeURIComponent(v):''; }
+  if (step.id==='check-pages')     { const v=state.version||fv('pages-version'); return v?'v='+encodeURIComponent(v):''; }
   return '';
 }
 
