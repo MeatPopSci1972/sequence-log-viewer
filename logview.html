@@ -1,4 +1,4 @@
-<!-- TRANSITION: This file is being extracted to https://github.com/MeatPopSci1972/sequence-log-viewer
+﻿<!-- TRANSITION: This file is being extracted to https://github.com/MeatPopSci1972/sequence-log-viewer
      The SF copy here is the reference during transition. Do not delete until standalone version is verified.
      See HANDOFF.md for details. -->
 <!DOCTYPE html>
@@ -244,7 +244,6 @@ function buildBody(step) {
 function buildQuery(step) {
   if (step.id==='validate-readme') { const v=fv('val-version')||state.version; return v?'v='+encodeURIComponent(v):''; }
   if (step.id==='snapshot')        { const v=fv('snap-version')||state.version; return v?'v='+encodeURIComponent(v):''; }
-  if (step.id==='check-pages')     { const v=state.version||fv('pages-version'); return v?'v='+encodeURIComponent(v):''; }
   return '';
 }
 
@@ -262,6 +261,7 @@ function summarise(id, d) {
   if (id==='git-handoff')     return '✓ committed';
   if (id==='changelog')       return '✓ changelog written';
   if (id==='tag')             return '✓ tagged '+d.tag;
+  if (id==='check-pages')   return d.ok ? '✓ live' : '✗ not found';
   return JSON.stringify(d).slice(0,120);
 }
 
@@ -286,10 +286,52 @@ async function runStep(id) {
       return;
     }
   }
+  // check-pages: call GitHub API directly, no SF server needed
+  if (id==='check-pages') {
+    setStepState(id,'working');
+    const v = fv('pages-version')||state.version||'';
+    if (!v) { setStepState(id,'error','Enter a version number'); return; }
+    try {
+      const url = 'https://api.github.com/repos/MeatPopSci1972/sequence-builder/contents/releases/v'+v;
+      const resp = await fetch(url, {headers:{'Accept':'application/vnd.github.v3+json'}});
+      if (resp.status===200) setStepState(id,'done','✓ v'+v+' release exists on GitHub');
+      else if (resp.status===404) setStepState(id,'error','v'+v+' not found on GitHub (404)');
+      else setStepState(id,'error','GitHub returned HTTP '+resp.status);
+    } catch(e) { setStepState(id,'error','Network error: '+e.message); }
+    return;
+  }
   setStepState(id,'working');
   const el = document.getElementById('step-'+id);
   if (el && !el.classList.contains('open')) el.classList.add('open');
   try {
+    // check-pages: call GitHub API directly - no SF server needed
+    if (id === 'check-pages') {
+      const v = state.version || fv('pages-version');
+      if (!v) { setStepState(id,'error','Enter a version number first.'); return; }
+      // check-pages: call GitHub API directly, no SF server needed
+  if (id==='check-pages') {
+    setStepState(id,'working');
+    const v = fv('pages-version')||state.version||'';
+    if (!v) { setStepState(id,'error','Enter a version number'); return; }
+    try {
+      const url = 'https://api.github.com/repos/MeatPopSci1972/sequence-builder/contents/releases/v'+v;
+      const resp = await fetch(url, {headers:{'Accept':'application/vnd.github.v3+json'}});
+      if (resp.status===200) setStepState(id,'done','✓ v'+v+' release exists on GitHub');
+      else if (resp.status===404) setStepState(id,'error','v'+v+' not found on GitHub (404)');
+      else setStepState(id,'error','GitHub returned HTTP '+resp.status);
+    } catch(e) { setStepState(id,'error','Network error: '+e.message); }
+    return;
+  }
+  setStepState(id,'working');
+      try {
+        const apiUrl = 'https://api.github.com/repos/MeatPopSci1972/sequence-builder/releases/tags/v'+v;
+        const r = await fetch(apiUrl, {headers:{Accept:'application/vnd.github+json'}});
+        if (r.status === 200) setStepState(id,'done','Release v'+v+' found on GitHub.');
+        else if (r.status === 404) setStepState(id,'error','Release v'+v+' not found on GitHub (404).');
+        else setStepState(id,'error','GitHub returned HTTP '+r.status);
+      } catch(e) { setStepState(id,'error','Network error: '+e.message); }
+      return;
+    }
     let url = BASE+step.path, opts = {method:step.method};
     if (step.method==='POST') { opts.headers={'Content-Type':'application/json'}; opts.body=JSON.stringify(buildBody(step)); }
     else { const qp=buildQuery(step); if(qp) url+='?'+qp; }

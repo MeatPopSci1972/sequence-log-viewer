@@ -1,0 +1,51 @@
+﻿// launcher.js -- sequence-log-viewer hot-reload wrapper
+// Usage: node launcher.js  (instead of node logview-server.js)
+// Watches logview-server.js for changes and auto-restarts.
+// Zero dependencies -- uses only Node built-ins.
+
+const { spawn } = require('child_process');
+const fs   = require('fs');
+const path = require('path');
+
+const SERVER = path.join(__dirname, 'logview-server.js');
+let child      = null;
+let restarting = false;
+
+function start() {
+  child = spawn('node', ['logview-server.js'], {
+    cwd: __dirname,
+    stdio: 'inherit'
+  });
+  child.on('exit', function(code) {
+    if (!restarting) {
+      console.log('[launcher] server exited with code ' + code + ', restarting...');
+      setTimeout(start, 500);
+    }
+  });
+  console.log('[launcher] server started (pid ' + child.pid + ')');
+}
+
+function restart() {
+  if (restarting) return;
+  restarting = true;
+  console.log('[launcher] logview-server.js changed -- restarting...');
+  child.kill();
+  setTimeout(function() {
+    restarting = false;
+    start();
+  }, 300);
+}
+
+const WATCH_FILES = [
+  path.join(__dirname, 'logview-server.js')
+];
+WATCH_FILES.forEach(function(f) {
+  if (fs.existsSync(f)) {
+    fs.watch(f, function(event) {
+      if (event === 'change') restart();
+    });
+  }
+});
+
+console.log('[launcher] watching: ' + WATCH_FILES.map(f => path.basename(f)).join(', '));
+start();
