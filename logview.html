@@ -278,8 +278,8 @@ function buildBody(step) {
 }
 
 function buildQuery(step) {
-  if (step.id==='validate-readme') { const v=fv('val-version')||state.version; return v?'v='+encodeURIComponent(v):''; }
-  if (step.id==='snapshot')        { const v=fv('snap-version')||state.version; return v?'v='+encodeURIComponent(v):''; }
+  if (step.id==='validate-readme') { const v=state.version||fv('val-version'); return v?'v='+encodeURIComponent(v):''; }
+  if (step.id==='snapshot')        { const v=state.version||fv('snap-version'); return v?'v='+encodeURIComponent(v):''; }
   return '';
 }
 
