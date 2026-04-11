@@ -141,10 +141,10 @@
   </div>
 </div>
 <script>
-const BASE = 'http://localhost:3799';
+let BASE = 'http://localhost:3799';
 let state = { version: null, logSeenIds: new Set(), stepStates: {}, stepResults: {} };
 
-const STEPS = [
+let STEPS = [
   { id:'test-store',      label:'Store tests',          method:'GET',  path:'/test',            prereqs:[],                    fields:[], terminalOnly:false, desc:'Run contract tests. Gate: 0 failures. Count is informational.' },
   { id:'test-render',     label:'Render tests',         method:'GET',  path:'/test-render',      prereqs:['test-store'],         fields:[], terminalOnly:false, desc:'Playwright render gate. Gate: 0 failures. Count is informational.' },
   { id:'build',           label:'Build',                method:'POST', path:'/build',            prereqs:['test-store','test-render'], fields:[], terminalOnly:false, desc:'Syncs store.js into HTML between @@STORE-START/END sentinels.' },
@@ -161,6 +161,42 @@ const STEPS = [
   { id:'push',            label:'Push to GitHub',       method:null,   path:null,                prereqs:['tag'],                fields:[], terminalOnly:true,  desc:'Terminal: git push && git push --tags | Then: GitHub Releases > New release > select tag > attach html > Publish' },
   { id:'check-pages', label:'Verify live demo', method:'GET', path:'/check-pages', prereqs:[], fields:[{id:'pages-version',label:'Version',placeholder:'e.g. 0.9.99',vfn:()=>state.version||''}], terminalOnly:false, desc:'Confirm GitHub Pages is serving the release. Returns ok when HTTP 200.' },
 ];
+
+// CONFIG LOADER -- reads logview.*.config.json and overwrites BASE + STEPS
+function valueFromExpr(expr) {
+  // converts a valueFrom string like "'feat: v'+state.version" into a vfn closure
+  if (!expr || expr === 'state.version') return () => state.version || '';
+  // safe subset: only allow expressions referencing state.version
+  try { return new Function('state', 'return ' + expr).bind(null, state); } // jshint ignore:line
+  catch(e) { return () => ''; }
+}
+
+async function loadConfig() {
+  // Try to fetch config from same directory as the HTML file
+  const candidates = ['logview.sf.config.json'];
+  for (const name of candidates) {
+    try {
+      const resp = await fetch(name);
+      if (!resp.ok) continue;
+      const cfg = await resp.json();
+      if (cfg.baseUrl) BASE = cfg.baseUrl;
+      if (Array.isArray(cfg.steps) && cfg.steps.length) {
+        STEPS = cfg.steps.map(s => ({
+          ...s,
+          fields: (s.fields || []).map(f => ({
+            ...f,
+            vfn: f.valueFrom ? valueFromExpr(f.valueFrom) : () => ''
+          }))
+        }));
+      }
+      // expose loaded config on state for diagnostics
+      state.configLoaded = name;
+      return;
+    } catch(e) { /* try next */ }
+  }
+  // no config found -- stay with hardcoded defaults
+  state.configLoaded = null;
+}
 
 function renderSteps() {
   const list = document.getElementById('steps-list');
@@ -457,11 +493,15 @@ async function runAll() {
   btn.innerHTML = '&#9654;&#9654; run all';
 }
 
-renderSteps();
-pollStatus();
-pollLog();
-setInterval(pollStatus,5000);
-setInterval(pollLog,2000);
+async function init() {
+  await loadConfig();
+  renderSteps();
+  pollStatus();
+  pollLog();
+  setInterval(pollStatus,5000);
+  setInterval(pollLog,2000);
+}
+init();
 </script>
 </body>
 </html>
