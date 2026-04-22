@@ -286,7 +286,7 @@ function buildQuery(step) {
 function summarise(id, d) {
   if (id==='test-store')      return d.ok ? '✓ '+d.passed+'/'+d.passed+' passed' : '✗ '+d.failed+' failed';
   if (id==='test-render')     return d.ok ? '✓ '+d.passed+'/'+d.total+' passed' : '✗ '+d.failed+' failed';
-  if (id==='bump')            return '→ v'+d.newVersion+' ('+d.ms+'ms)';
+  if (id==='bump')            return '\u2192 v'+(d.newVersion||d.version||'?')+' ('+(d.ms||0)+'ms)'+(d.alreadyBumped?' [already at this version]':'');
   if (id==='build')           return '✓ build ok ('+d.ms+'ms)';
   if (id==='lint')            return d.ok ? '✓ lint clean' : '✗ '+d.output;
   if (id==='snapshot')        return '✓ snapshot written';
@@ -383,7 +383,7 @@ async function runStep(id) {
     } else {
       try{data=JSON.parse(text);}catch(e){data={raw:text.slice(0,300)};}
     }
-    if (id==='bump' && data.newVersion) { state.version=data.newVersion; refreshDefaults(); }
+    if (id==='bump' && (data.newVersion||data.version)) { state.version=data.newVersion||data.version; refreshDefaults(); }
     if (data.ok===false||resp.status>=400) setStepState(id,'error',data.error||data.output||text.slice(0,200));
     else setStepState(id,'done',summarise(id,data));
   } catch(e) { setStepState(id,'error','Network error: '+e.message); }
